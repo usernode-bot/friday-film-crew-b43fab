@@ -3,5 +3,15 @@
   "icon": {
     "emoji": "🎬"
   },
-  "secrets": []
+  "secrets": [],
+  "tests": [
+    {
+      "id": "poll.screen",
+      "name": "Poll screen renders",
+      "path": "/",
+      "expectText": "Suggest a film",
+      "visual": true,
+      "impact": ["public/**", "styles/tailwind-input.css", "server.js"]
+    }
+  ]
 }

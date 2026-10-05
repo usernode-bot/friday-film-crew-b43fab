@@ -108,156 +108,246 @@
   </script>
 </head>
 <body class="min-h-screen bg-ground text-fg">
-  <!-- Built from the design kit in styles/tailwind-input.css: colour tokens
-       (bg-ground, text-muted, bg-accent, ...) that are right in both looks,
-       and components (btn-primary, list, card, state-empty, ...). The real
-       app keeps the kit; CLAUDE.md's "## Design" says how. -->
   <main class="mx-auto flex max-w-md flex-col gap-8 px-4 py-10">
 
-    <!-- usernode-starter-notice@1 — starter-template messaging. When building
-         the user's real app, replace this whole screen and delete this block,
-         both sentinel comments included. -->
-    <section class="card flex flex-col items-start gap-3">
-      <span class="rounded-full bg-raised px-3 py-1 text-small font-medium text-muted">Starter template</span>
-      <h1 class="text-title">Friday Film Crew</h1>
-      <p class="text-body text-muted">Welcome to your new app! Everything on this screen is placeholder content that came with it.</p>
-      <p class="text-body text-muted">To change this app, ask Homeroom bot: tap the <strong class="font-semibold text-fg">Homeroom icon</strong>, then <strong class="font-semibold text-fg">Ask for a change</strong>. Describe what you'd like in plain English, and it will be turned into your real app.</p>
+    <!-- The signature element: the cinema-marquee frame (styles/tailwind-input.css)
+         around whoever is currently winning the poll. -->
+    <section class="marquee" aria-live="polite">
+      <div class="flex flex-col items-center gap-1 px-4 py-7 text-center">
+        <p class="text-small font-medium text-muted">Friday's film</p>
+        <div id="winner-loading" class="skeleton h-8 w-48" role="status">
+          <span class="sr-only">Loading the winner</span>
+        </div>
+        <p id="winner-title" class="text-title" hidden></p>
+        <p id="winner-meta" class="text-small text-muted" hidden></p>
+      </div>
+    </section>
+
+    <!-- The one primary action: suggesting a film. -->
+    <section>
+      <h2 class="section-label">Suggest a film</h2>
+      <form id="suggest-form" class="flex flex-col gap-3" novalidate>
+        <input id="film-title" class="field" type="text" maxlength="200" placeholder="Film title"
+               aria-label="Film title" autocomplete="off">
+        <textarea id="film-note" class="field" rows="2" maxlength="300"
+                  placeholder="Why it's worth watching (optional)"
+                  aria-label="Why it's worth watching (optional)"></textarea>
+        <p id="form-message" class="text-small text-danger" hidden></p>
+        <button type="submit" class="btn-primary">Suggest</button>
+      </form>
     </section>
 
     <section>
-      <h2 class="section-label">What's already working</h2>
-      <ul class="list">
-        <li class="list-row items-start">
-          <svg class="mt-0.5 h-5 w-5 shrink-0 text-accent" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M16.7 5.3a1 1 0 0 1 0 1.4l-7 7a1 1 0 0 1-1.4 0l-3-3a1 1 0 1 1 1.4-1.4L9 11.6l6.3-6.3a1 1 0 0 1 1.4 0Z" clip-rule="evenodd"/></svg>
-          <div>
-            <p class="text-body font-medium">Sign-in</p>
-            <p class="text-small text-muted">You're signed in through Homeroom automatically, with no accounts to build.</p>
-          </div>
-        </li>
-        <li class="list-row items-start">
-          <svg class="mt-0.5 h-5 w-5 shrink-0 text-accent" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M16.7 5.3a1 1 0 0 1 0 1.4l-7 7a1 1 0 0 1-1.4 0l-3-3a1 1 0 1 1 1.4-1.4L9 11.6l6.3-6.3a1 1 0 0 1 1.4 0Z" clip-rule="evenodd"/></svg>
-          <div>
-            <p class="text-body font-medium">Database</p>
-            <p class="text-small text-muted">Your app has its own private database, ready to store things.</p>
-          </div>
-        </li>
-        <li class="list-row items-start">
-          <svg class="mt-0.5 h-5 w-5 shrink-0 text-accent" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M16.7 5.3a1 1 0 0 1 0 1.4l-7 7a1 1 0 0 1-1.4 0l-3-3a1 1 0 1 1 1.4-1.4L9 11.6l6.3-6.3a1 1 0 0 1 1.4 0Z" clip-rule="evenodd"/></svg>
-          <div>
-            <p class="text-body font-medium">Live API</p>
-            <p class="text-small text-muted">The example below talks to a real server. Try it.</p>
-          </div>
-        </li>
-      </ul>
-    </section>
-    <!-- /usernode-starter-notice@1 -->
-
-    <section class="flex flex-col items-center gap-5">
-      <div class="w-full px-1">
-        <h2 class="text-heading">Try the example</h2>
-        <p class="text-small text-muted">This example will be replaced</p>
-      </div>
-
-      <button id="press-btn" class="btn-primary h-32 w-32 rounded-full text-title active:scale-95">Press!</button>
-
-      <p id="count" class="min-h-6 text-body text-muted"></p>
-
-      <div class="w-full">
-        <h3 class="section-label">Leaderboard</h3>
-        <!-- Anything that loads data shows exactly one of these at a time:
-             loading, the data, empty (it loaded, and there is nothing yet)
-             or error (it did not load). The script below switches them. -->
-        <div id="leaderboard-loading" role="status">
-          <span class="sr-only">Loading the leaderboard</span>
-          <div class="list">
-            <div class="list-row"><div class="skeleton h-4 w-1/2"></div></div>
-            <div class="list-row"><div class="skeleton h-4 w-1/3"></div></div>
-            <div class="list-row"><div class="skeleton h-4 w-2/5"></div></div>
-          </div>
-        </div>
-        <ol id="leaderboard" class="list" hidden></ol>
-        <div id="leaderboard-empty" class="state-empty" hidden>
-          <p class="text-heading">No presses yet</p>
-          <p class="text-body text-muted">Press the button to put your name on the board.</p>
-          <button id="leaderboard-press" class="btn-secondary">Press it</button>
-        </div>
-        <div id="leaderboard-error" class="state-error" hidden>
-          <svg class="h-6 w-6 text-danger" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-8-5a1 1 0 0 1 1 1v4a1 1 0 1 1-2 0V6a1 1 0 0 1 1-1Zm0 10a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" clip-rule="evenodd"/></svg>
-          <p class="text-heading">Couldn't load the leaderboard</p>
-          <p class="text-body text-muted">Pressing still works, and every press is saved.</p>
-          <button id="leaderboard-retry" class="btn-secondary">Retry</button>
+      <h2 class="section-label">The suggestions</h2>
+      <!-- Anything that loads data shows exactly one of these at a time:
+           loading, the data, empty (it loaded, and there is nothing yet)
+           or error (it did not load). The script below switches them. -->
+      <div id="films-loading" role="status">
+        <span class="sr-only">Loading the suggestions</span>
+        <div class="list">
+          <div class="list-row"><div class="skeleton h-4 w-1/2"></div></div>
+          <div class="list-row"><div class="skeleton h-4 w-1/3"></div></div>
+          <div class="list-row"><div class="skeleton h-4 w-2/5"></div></div>
         </div>
       </div>
+      <ul id="films" class="list" hidden></ul>
+      <div id="films-empty" class="state-empty" hidden>
+        <p class="text-heading">No films suggested yet</p>
+        <p class="text-body text-muted">Be the first: suggest a film above.</p>
+      </div>
+      <div id="films-error" class="state-error" hidden>
+        <svg class="h-6 w-6 text-danger" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-8-5a1 1 0 0 1 1 1v4a1 1 0 1 1-2 0V6a1 1 0 0 1 1-1Zm0 10a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" clip-rule="evenodd"/></svg>
+        <p class="text-heading">Couldn't load the suggestions</p>
+        <p class="text-body text-muted">The list could not be loaded. Suggesting still works once it recovers.</p>
+        <button id="films-retry" class="btn-secondary">Retry</button>
+      </div>
     </section>
-
-    <p class="text-center text-small text-muted">Built on Homeroom. This template screen disappears once you build your real app.</p>
   </main>
 
   <script>
     const params = new URLSearchParams(window.location.search);
     const token = params.get('token') || '';
     const headers = token ? { 'x-usernode-token': token } : {};
-    const count = document.getElementById('count');
 
-    // The leaderboard's states, one shown at a time. Empty only when the
-    // load worked and found nothing; a failure is the error state, never
-    // "No presses yet".
+    // The suggestion list's states, one shown at a time. Empty only when
+    // the load worked and found nothing; a failure is the error state,
+    // never "No films suggested yet".
     const views = {
-      loading: document.getElementById('leaderboard-loading'),
-      list: document.getElementById('leaderboard'),
-      empty: document.getElementById('leaderboard-empty'),
-      error: document.getElementById('leaderboard-error'),
+      loading: document.getElementById('films-loading'),
+      list: document.getElementById('films'),
+      empty: document.getElementById('films-empty'),
+      error: document.getElementById('films-error'),
     };
     function show(state) {
       for (const [name, el] of Object.entries(views)) el.hidden = name !== state;
     }
 
-    async function loadLeaderboard() {
-      let leaderboard;
-      try {
-        const res = await fetch('/api/leaderboard', { headers });
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        ({ leaderboard } = await res.json());
-      } catch {
-        show('error');
-        return;
+    const winnerLoading = document.getElementById('winner-loading');
+    const winnerTitle = document.getElementById('winner-title');
+    const winnerMeta = document.getElementById('winner-meta');
+
+    function renderWinner(films) {
+      winnerLoading.hidden = true;
+      const leader = films.length ? films[0] : null;
+      if (leader && leader.votes > 0) {
+        winnerTitle.textContent = leader.title;
+        winnerMeta.textContent = leader.votes + (leader.votes === 1 ? ' vote' : ' votes');
+        winnerTitle.hidden = false;
+        winnerMeta.hidden = false;
+      } else {
+        winnerTitle.textContent = 'No one is winning yet';
+        winnerTitle.hidden = false;
+        winnerMeta.hidden = true;
       }
-      // People's names go in as text, never as HTML.
-      views.list.replaceChildren(...leaderboard.map((r, i) => {
-        const row = document.createElement('li');
-        row.className = 'list-row justify-between';
-        const name = document.createElement('span');
-        name.textContent = (i + 1) + '. ' + r.username;
-        const presses = document.createElement('span');
-        presses.className = 'tabular-nums text-muted';
-        presses.textContent = r.presses;
-        row.append(name, presses);
-        return row;
-      }));
-      const total = leaderboard.reduce((s, r) => s + parseInt(r.presses, 10), 0);
-      count.textContent = total + (total === 1 ? ' press so far' : ' presses so far');
-      show(leaderboard.length ? 'list' : 'empty');
     }
 
-    async function press() {
+    function voteButton(film, votedFilmId) {
+      const button = document.createElement('button');
+      if (film.id === votedFilmId) {
+        button.className = 'btn-secondary px-3 text-small';
+        button.textContent = 'Voted';
+        button.disabled = true;
+      } else {
+        button.className = 'btn-secondary px-3 text-small';
+        button.textContent = 'Vote';
+        button.addEventListener('click', () => vote(film.id));
+      }
+      return button;
+    }
+
+    async function loadFilms() {
+      let films;
       try {
-        const res = await fetch('/api/press', {
+        const res = await fetch('/api/films', { headers });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        ({ films } = await res.json());
+      } catch {
+        show('error');
+        winnerLoading.hidden = true;
+        winnerTitle.hidden = true;
+        winnerMeta.textContent = 'It will appear once the list loads.';
+        winnerMeta.hidden = false;
+        return;
+      }
+      // Titles and names go in as text, never as HTML.
+      const votedFilmId = films.map(f => f.voted_film_id).find(v => v != null) ?? null;
+      views.list.replaceChildren(...films.map(film => {
+        const row = document.createElement('li');
+        row.className = 'list-row items-start';
+        const details = document.createElement('div');
+        details.className = 'min-w-0 flex-1';
+        const title = document.createElement('p');
+        title.className = 'text-body font-medium';
+        title.textContent = film.title;
+        details.append(title);
+        if (film.note) {
+          const note = document.createElement('p');
+          note.className = 'text-small text-muted';
+          note.textContent = film.note;
+          details.append(note);
+        }
+        const by = document.createElement('p');
+        by.className = 'text-small text-muted';
+        by.textContent = 'Suggested by ' + film.added_by_name;
+        details.append(by);
+        const side = document.createElement('div');
+        side.className = 'flex shrink-0 flex-col items-end gap-1';
+        const count = document.createElement('span');
+        count.className = 'tabular-nums text-small text-muted';
+        count.textContent = film.votes + (film.votes === 1 ? ' vote' : ' votes');
+        side.append(count, voteButton(film, votedFilmId));
+        row.append(details, side);
+        return row;
+      }));
+      show(films.length ? 'list' : 'empty');
+      renderWinner(films);
+    }
+
+    async function vote(filmId) {
+      try {
+        const res = await fetch('/api/votes', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...headers },
+          body: JSON.stringify({ film_id: filmId }),
         });
-        if (res.ok) loadLeaderboard();
-        else if (res.status === 401) count.textContent = 'Sign in to press!';
+        if (res.ok) {
+          loadFilms();
+        } else if (res.status === 401) {
+          askForAccount('vote for a film');
+        } else if (res.status === 404) {
+          // The film is gone or never existed: refetch the true state.
+          loadFilms();
+        }
       } catch {}
     }
 
-    document.getElementById('press-btn').addEventListener('click', press);
-    document.getElementById('leaderboard-press').addEventListener('click', press);
-    document.getElementById('leaderboard-retry').addEventListener('click', () => {
-      show('loading');
-      loadLeaderboard();
+    const form = document.getElementById('suggest-form');
+    const titleInput = document.getElementById('film-title');
+    const noteInput = document.getElementById('film-note');
+    const formMessage = document.getElementById('form-message');
+
+    function showFormMessage(text) {
+      formMessage.textContent = text;
+      formMessage.hidden = false;
+    }
+
+    // Guests are answered 401 `account_required`; the platform bridge turns
+    // that into its make-an-account sheet.
+    function askForAccount(action) {
+      if (window.usernode && typeof window.usernode.askForAccount === 'function') {
+        window.usernode.askForAccount({ action });
+      } else {
+        showFormMessage('Make a Homeroom account to ' + action + '.');
+      }
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const title = titleInput.value.trim();
+      if (!title) {
+        showFormMessage('Give the film a title first.');
+        return;
+      }
+      try {
+        const res = await fetch('/api/films', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...headers },
+          body: JSON.stringify({ title, note: noteInput.value }),
+        });
+        if (res.ok) {
+          titleInput.value = '';
+          noteInput.value = '';
+          formMessage.hidden = true;
+          loadFilms();
+        } else if (res.status === 409) {
+          showFormMessage('That film is already on the list.');
+        } else if (res.status === 400) {
+          const { error } = await res.json();
+          if (error === 'title_too_long') showFormMessage('Keep the title under 200 characters.');
+          else if (error === 'note_too_long') showFormMessage('Keep the note under 300 characters.');
+          else showFormMessage('Give the film a title first.');
+        } else if (res.status === 401) {
+          askForAccount('suggest a film');
+        } else {
+          showFormMessage('Suggesting failed. Try again.');
+        }
+      } catch {
+        showFormMessage('Suggesting failed. Try again.');
+      }
     });
 
-    loadLeaderboard();
+    document.getElementById('films-retry').addEventListener('click', () => {
+      show('loading');
+      winnerLoading.hidden = false;
+      winnerTitle.hidden = true;
+      winnerMeta.hidden = true;
+      loadFilms();
+    });
+
+    loadFilms();
+    // The banner refreshes after every suggestion or vote, every 30 seconds,
+    // and whenever the page is reopened.
+    setInterval(loadFilms, 30_000);
   </script>
 </body>
 </html>

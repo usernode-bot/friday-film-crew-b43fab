@@ -100,24 +100,24 @@ tables you've marked private), etc.
 
 ## About Friday Film Crew
 
-A movie-night poll
-
-_(add a sentence or two more of product context here so Claude Code has a
-shared understanding of what this app is for)_
+A movie-night poll. Everyone in the group suggests films for Friday, votes
+for the one they want, and the marquee banner at the top shows whatever is
+currently leading. There is no closing mechanism: Friday's film is just
+whatever has the most votes when the group sits down.
 
 ## Design
 
 This app's look. The first real version fills in the blanks; every later
 change follows it, and updates it when a request changes the look on purpose.
 
-- **Palette:** _(name the accent, any second colour and the neutrals, e.g.
-  "accent: tomato red; second: basil green; neutrals: warm greys")_
-- **Signature element:** _(the one thing on screen drawn from this app's
-  subject, which no other app would have)_
+- **Palette:** accent: marquee amber (a deep amber in the light look, a
+  glowing amber in the dark); neutrals: the kit's warm stone greys. The
+  starter's teal was deliberately not kept.
+- **Signature element:** the cinema-marquee banner at the top of the screen
+  (the `.marquee` component), edged with round amber bulbs like a theatre
+  front, showing Friday's current leader.
 - **Type scale:** `text-title`, `text-heading`, `text-body`, `text-small`
   _(change their sizes in `tailwind.config.js` if you must, not their number)_
-- **One fixed look:** _(only for an app drawn as its own scene, such as a
-  game: which look, and why. Otherwise delete this line.)_
 
 The kit is in `styles/tailwind-input.css`: colour tokens with a light and
 a dark value (named in `tailwind.config.js`), and a few components
@@ -139,6 +139,15 @@ Re-theme by changing the token values there, keeping every text pair at
 
 ## App-specific conventions
 
-_(optional — e.g. "all currency values stored as integer cents, not
-floats"; "the `posts` table is append-only"; "avoid adding new
-dependencies"; etc.)_
+- The `films` and `votes` tables are **append-only**: films are never
+  deleted (there is no delete route), and a vote is switched by updating
+  the voter's one row (`votes` has `UNIQUE (voter_id)`), never removed.
+- Duplicate film titles are impossible by design: a unique index on
+  `lower(films.title)` backs the "already suggested" 409. Don't work
+  around it in application code.
+- `GET /api/films` is a guest read route: never assume `req.user` is set.
+- Staging seeds (fake films, and votes from fake voters with negative
+  `voter_id` values) are gated on `IS_STAGING` and only run when `films`
+  is empty; negative ids can never match a real user.
+- No new dependencies without a good reason; the app needs only express,
+  pg and jsonwebtoken.

@@ -154,29 +154,67 @@ app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 // fresh load.
 app.get('/favicon.ico', (_req, res) => res.status(204).end());
 
-// Button press
-app.post('/api/press', async (req, res) => {
+// The poll: every film anyone has suggested, ranked by votes (a tie goes
+// to the film suggested first). Guests may read this, so `req.user` may be
+// absent — read routes must not assume it (use `req.user ? req.user.id : null`).
+app.get('/api/films', async (req, res) => {
   try {
-    await pool.query(`
-      INSERT INTO presses (user_id, username) VALUES ($1, $2)
-    `, [req.user.id, req.user.username]);
-    res.json({ ok: true });
+    const viewerId = req.user ? req.user.id : null;
+    const { rows } = await pool.query(`
+      SELECT f.id, f.title, f.note, f.added_by_name, f.created_at,
+             COUNT(v.id)::int AS votes,
+             (SELECT vv.film_id FROM votes vv WHERE vv.voter_id = $1) AS voted_film_id
+      FROM films f
+      LEFT JOIN votes v ON v.film_id = f.id
+      GROUP BY f.id
+      ORDER BY COUNT(v.id) DESC, f.created_at ASC
+    `, [viewerId]);
+    res.json({ films: rows });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// Leaderboard
-app.get('/api/leaderboard', async (_req, res) => {
+// Suggest a film. Needs an account; the middleware already answers guests
+// with 401 `account_required`. The unique index on lower(title) makes a
+// duplicate impossible at the database level; it surfaces here as 409.
+app.post('/api/films', async (req, res) => {
   try {
+    const body = req.body || {};
+    const title = typeof body.title === 'string' ? body.title.trim() : '';
+    const note = typeof body.note === 'string' && body.note.trim() ? body.note.trim() : null;
+    if (!title) return res.status(400).json({ error: 'title_required' });
+    if (title.length > 200) return res.status(400).json({ error: 'title_too_long' });
+    if (note && note.length > 300) return res.status(400).json({ error: 'note_too_long' });
     const { rows } = await pool.query(`
-      SELECT username, COUNT(*) as presses
-      FROM presses
-      GROUP BY username
-      ORDER BY presses DESC
-      LIMIT 50
-    `);
-    res.json({ leaderboard: rows });
+      INSERT INTO films (title, note, added_by, added_by_name)
+      VALUES ($1, $2, $3, $4)
+      RETURNING id, title, note, added_by, added_by_name, created_at
+    `, [title, note, req.user.id, req.user.username]);
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    if (err.code === '23505') return res.status(409).json({ error: 'duplicate' });
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Vote for a film. One vote per person: `votes` holds exactly one row per
+// voter (UNIQUE (voter_id)), and voting for another film moves that row
+// rather than adding one. A vote can be switched, never taken back — no
+// delete route.
+app.post('/api/votes', async (req, res) => {
+  try {
+    const filmId = Number((req.body || {}).film_id);
+    if (!Number.isInteger(filmId)) return res.status(400).json({ error: 'film_id_required' });
+    const film = await pool.query('SELECT id FROM films WHERE id = $1', [filmId]);
+    if (film.rowCount === 0) return res.status(404).json({ error: 'not_found' });
+    await pool.query(`
+      INSERT INTO votes (film_id, voter_id, voter_name)
+      VALUES ($1, $2, $3)
+      ON CONFLICT (voter_id) DO UPDATE
+        SET film_id = EXCLUDED.film_id, created_at = NOW()
+    `, [filmId, req.user.id, req.user.username]);
+    res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -220,14 +258,68 @@ app.get('*', (req, res) => {
 });
 
 async function start() {
+  // Both tables are append-only: films are never deleted, and a vote is
+  // switched by updating the voter's one row, never removed.
   await pool.query(`
-    CREATE TABLE IF NOT EXISTS presses (
+    CREATE TABLE IF NOT EXISTS films (
       id SERIAL PRIMARY KEY,
-      user_id INTEGER NOT NULL,
-      username VARCHAR(255) NOT NULL,
+      title VARCHAR(200) NOT NULL,
+      note VARCHAR(300),
+      added_by INTEGER NOT NULL,
+      added_by_name VARCHAR(255) NOT NULL,
       created_at TIMESTAMPTZ DEFAULT NOW()
     )
   `);
+  // The unique index on lower(title) is what makes "already suggested"
+  // impossible at the database level, and seed inserts idempotent.
+  await pool.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS films_title_lower_key ON films (lower(title))
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS votes (
+      id SERIAL PRIMARY KEY,
+      film_id INTEGER NOT NULL REFERENCES films(id),
+      voter_id INTEGER NOT NULL,
+      voter_name VARCHAR(255) NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE (voter_id)
+    )
+  `);
+  // Staging mock data: a populated poll for the preview. Gated on staging,
+  // only when no films exist yet, and obviously fake — placeholder titles,
+  // fake usernames, and negative voter ids that can never match a real
+  // `req.user.id`, so no real person appears to have voted.
+  if (IS_STAGING) {
+    const { rows } = await pool.query('SELECT COUNT(*)::int AS n FROM films');
+    if (rows[0].n === 0) {
+      const seeded = await pool.query(`
+        INSERT INTO films (title, note, added_by, added_by_name) VALUES
+          ($1, $2, -1, $3),
+          ($4, $5, -2, $6),
+          ($7, $8, -3, $9)
+        RETURNING id
+      `, [
+        'Staging demo: Ghostlight', 'A small mystery everyone can talk over', 'staging-demo-maya',
+        'Staging demo: The Long Weekend', 'A comedy, and a good snacks film', 'staging-demo-rafe',
+        'Staging demo: Midnight Carousel', 'An entirely made-up musical with a big ending', 'staging-demo-juno',
+      ]);
+      const [a, b, c] = seeded.rows.map(r => r.id);
+      const fakeVotes = [
+        [a, -101, 'staging-demo-ada'],
+        [a, -102, 'staging-demo-ben'],
+        [a, -103, 'staging-demo-cleo'],
+        [b, -104, 'staging-demo-dev'],
+        [b, -105, 'staging-demo-eva'],
+        [c, -106, 'staging-demo-finn'],
+      ];
+      for (const [filmId, voterId, voterName] of fakeVotes) {
+        await pool.query(
+          'INSERT INTO votes (film_id, voter_id, voter_name) VALUES ($1, $2, $3)',
+          [filmId, voterId, voterName]
+        );
+      }
+    }
+  }
   const server = app.listen(port, () => console.log(`Listening on :${port}`));
   // Let Envoy retire idle upstream connections at 60s, with a 15s margin.
   server.keepAliveTimeout = 75_000;
