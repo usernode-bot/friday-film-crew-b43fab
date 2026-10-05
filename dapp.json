@@ -4,6 +4,10 @@
     "emoji": "🎬"
   },
   "secrets": [],
+  "llm": {
+    "purpose": "Suggest film ideas for you based on the films you voted for or added",
+    "suggested_daily_cap_cents": 50
+  },
   "tests": [
     {
       "id": "poll.screen",
@@ -12,6 +16,14 @@
       "expectText": "Suggest a film",
       "visual": true,
       "impact": ["public/**", "styles/tailwind-input.css", "server.js"]
+    },
+    {
+      "id": "suggestions.hidden-without-ai",
+      "name": "Poll screen renders with suggestions section hidden",
+      "path": "/",
+      "expectText": "Suggest a film",
+      "visual": true,
+      "impact": ["public/**", "server.js"]
     }
   ]
 }
