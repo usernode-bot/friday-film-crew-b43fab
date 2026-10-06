@@ -220,6 +220,124 @@ app.post('/api/votes', async (req, res) => {
   }
 });
 
+// "Suggested for you": three film ideas picked for the signed-in viewer by
+// the platform's LLM proxy, billed to the viewer's own AI budget under its
+// consent grant. Favorites are the films the viewer voted for or added
+// themselves — the only signal this app has. The route answers with ideas,
+// or with a hide reason / error code the frontend switches on, so the page
+// needs one request to decide what to show.
+const LLM_ENABLED = !!(process.env.USERNODE_LLM_PROXY_URL && process.env.USERNODE_LLM_PROXY_TOKEN);
+
+// The model is told to reply with JSON and may wrap it in prose anyway: take
+// the outermost braces, drop ideas without a title, and cap at three.
+function parseIdeas(text) {
+  const start = text.indexOf('{');
+  const end = text.lastIndexOf('}');
+  if (start === -1 || end <= start) return [];
+  let parsed;
+  try {
+    parsed = JSON.parse(text.slice(start, end + 1));
+  } catch {
+    return [];
+  }
+  const list = Array.isArray(parsed) ? parsed : parsed && parsed.ideas;
+  if (!Array.isArray(list)) return [];
+  return list
+    .map(i => ({
+      title: i && typeof i.title === 'string' ? i.title.trim().slice(0, 200) : '',
+      reason: i && typeof i.reason === 'string' ? i.reason.trim() : '',
+    }))
+    .filter(i => i.title)
+    .slice(0, 3);
+}
+
+app.get('/api/suggestions', async (req, res) => {
+  try {
+    // Staging previews and standalone deploys have no proxy: the frontend
+    // hides the section entirely.
+    if (!LLM_ENABLED) return res.json({ unavailable: true });
+    // Guests may read /api/*, so req.user can be absent here; a guest has no
+    // votes and no suggestions, and both need an account anyway.
+    const viewerId = req.user ? req.user.id : null;
+    if (!viewerId) return res.json({ hide: 'no-favorites' });
+
+    const { rows } = await pool.query(`
+      SELECT f.id, f.title, f.added_by, COUNT(v.id)::int AS votes
+      FROM films f
+      LEFT JOIN votes v ON v.film_id = f.id
+      GROUP BY f.id
+      ORDER BY COUNT(v.id) DESC, f.created_at ASC
+    `);
+    const { rows: votedRows } = await pool.query(
+      'SELECT film_id FROM votes WHERE voter_id = $1', [viewerId]);
+    const voted = new Set(votedRows.map(r => r.film_id));
+    const favorites = rows
+      .filter(r => r.added_by === viewerId || voted.has(r.id))
+      .map(r => r.title);
+    if (favorites.length === 0) return res.json({ hide: 'no-favorites' });
+    const onPoll = rows.map(r => r.title);
+    const topPicks = rows.filter(r => r.votes > 0).slice(0, 3);
+
+    const lines = [
+      'You are helping a small group pick a film for their Friday movie night.',
+      'Suggest exactly three film ideas for one viewer of this group, based on what they have already liked.',
+      '',
+      "The viewer's favorite films (they voted for these, or added them to the poll):",
+      ...favorites.map(t => '- ' + t),
+    ];
+    if (topPicks.length) {
+      lines.push('', "The group's current top picks, for context:");
+      topPicks.forEach(r => lines.push(
+        '- ' + r.title + ' (' + r.votes + (r.votes === 1 ? ' vote' : ' votes') + ')'));
+    }
+    lines.push(
+      '',
+      'Do not suggest anything already on the poll:',
+      ...onPoll.map(t => '- ' + t),
+      '',
+      'Rules:',
+      '- Each idea is a real film, with a one-line reason that names which of the viewer\'s favorites it is like.',
+      '- Keep every idea suitable for a general audience: decline anything mature, explicit or violent-themed.',
+      '- Reply with JSON only, in exactly this shape: {"ideas":[{"title":"...","reason":"..."}]}',
+    );
+
+    // The platform proxy bills the viewer's own AI budget, so their iframe
+    // token must travel with the app's credential.
+    const resp = await fetch(process.env.USERNODE_LLM_PROXY_URL + '/v1/messages', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'anthropic-version': '2023-06-01',
+        'x-usernode-app-token': process.env.USERNODE_LLM_PROXY_TOKEN,
+        'x-usernode-user-token': req.headers['x-usernode-token'] || req.query.token || '',
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 1000,
+        messages: [{ role: 'user', content: lines.join('\n') }],
+      }),
+    });
+    if (resp.status === 403) return res.status(403).json({ error: 'grant_required' });
+    if (resp.status === 429) {
+      const body = await resp.json().catch(() => ({}));
+      const code = body.code === 'app_cap_exceeded' || body.code === 'budget_exceeded'
+        ? body.code
+        : 'budget_exceeded';
+      return res.status(429).json({ error: code });
+    }
+    if (!resp.ok) return res.status(502).json({ error: 'ai_failed' });
+    const data = await resp.json().catch(() => null);
+    const text = Array.isArray(data && data.content)
+      ? data.content.filter(b => b && b.type === 'text').map(b => b.text || '').join('\n')
+      : '';
+    const ideas = parseIdeas(text);
+    if (ideas.length === 0) return res.status(502).json({ error: 'ai_failed' });
+    res.json({ ideas });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 // HTML shell: serve the app if authenticated. Unauthenticated top-level
