@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- Friday Film Crew featured artwork, light look: black clapperboard on cream -->
+  <rect width="1024" height="1024" fill="#FFFEEA"/>
+  <!-- Same mark geometry as brand/icon.svg, scaled to about 70% of the tile width -->
+  <g transform="translate(154 180) scale(1.2448)">
+    <!-- Board's top band -->
+    <rect x="0" y="156" width="576" height="72" fill="#000000"/>
+    <!-- Stripes on the top band, in the tile colour -->
+    <polygon points="72,156 148,156 122,228 46,228" fill="#FFFEEA"/>
+    <polygon points="254,156 330,156 304,228 228,228" fill="#FFFEEA"/>
+    <polygon points="436,156 512,156 486,228 410,228" fill="#FFFEEA"/>
+    <!-- Gap in the tile colour separating the band from the body -->
+    <!-- Board body: rounded rectangle, radius about 4% of the mark's width -->
+    <rect x="0" y="258" width="576" height="336" rx="23" fill="#000000"/>
+    <!-- Clapper: rounded bar hinged at the board's top-left, raised 14 degrees -->
+    <g transform="rotate(-14 0 156)">
+      <rect x="0" y="76" width="576" height="72" rx="23" fill="#000000"/>
+      <polygon points="72,76 148,76 122,148 46,148" fill="#FFFEEA"/>
+      <polygon points="254,76 330,76 304,148 228,148" fill="#FFFEEA"/>
+      <polygon points="436,76 512,76 486,148 410,148" fill="#FFFEEA"/>
+    </g>
+  </g>
+</svg>

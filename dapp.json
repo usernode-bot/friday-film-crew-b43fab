@@ -1,6 +1,7 @@
 {
   "description": "A movie-night poll",
   "icon": {
+    "image": "brand/icon.png",
     "emoji": "🎬"
   },
   "secrets": [],
